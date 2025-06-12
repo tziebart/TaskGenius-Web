@@ -26,8 +26,8 @@ db = SQLAlchemy(app)
 @app.route('/')
 def test_db_connection():
     """
-Tries to connect to the database and run a simple query.
-Returns a success or failure message.
+    Tries to connect to the database and run a simple query.
+    Returns a success or failure message.
     """
     try:
         # The 'with app.app_context()' is important for running DB operations in Flask

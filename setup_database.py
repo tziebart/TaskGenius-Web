@@ -13,7 +13,7 @@ app = Flask(__name__)
 # It's okay to hardcode it here for this one-time setup script since you won't commit it to Git.
 # Make sure to replace the password placeholder with your actual DB password.
 # Example: 'postgresql://postgres:your_db_password@db.xyz.supabase.co:5432/postgres'
-SUPABASE_URL = 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres'
+SUPABASE_URL = 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres?sslmode=require'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = SUPABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

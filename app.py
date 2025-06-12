@@ -9,11 +9,21 @@ import uuid # For generating user IDs
 
 # --- App Initialization ---
 app = Flask(__name__)
+import psycopg2
+
+connection = psycopg2.connect(
+        dbname='postgres',
+        user='postgres',
+        password='GfjYpfc03onizwZU',
+        host='db.yoboblatndnmcxvkzblc.supabase.co',
+        port='5432',
+        sslmode='require'
+)
 # IMPORTANT: This will be set from an environment variable in production
 # For local dev, we can set it directly for now if we don't use a .env file
 # The URL you copied from Supabase goes here.
 # app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.yoboblatndnmcxvkzblc:GfjYpfc03onizwZU@aws-0-ca-central-1.pooler.supabase.com:5432/postgres')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', connection)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_very_secret_key_here'
 

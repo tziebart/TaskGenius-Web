@@ -127,7 +127,7 @@ def login_route():
 if __name__ == '__main__':
     # When running locally, you'd first run `flask init-db` in your terminal
     # Then you'd run the app
-    app.run(host='0.0.0.0', debug=True)')
+    app.run(host='0.0.0.0', debug=True)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_very_secret_key_here'
 
@@ -214,7 +214,7 @@ def login_route():
 if __name__ == '__main__':
     # When running locally, you'd first run `flask init-db` in your terminal
     # Then you'd run the app
-    app.run(host='0.0.0.0', debug=True)')
+    app.run(host='0.0.0.0', debug=True)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_very_secret_key_here'
 
@@ -290,13 +290,6 @@ def login_route():
         return jsonify({"success": True, "user": user_data}), 200
     else:
         return jsonify({"error": "Invalid email or password."}), 401
-
-# ... We would update all other API routes to use SQLAlchemy queries ...
-# For example, get_projects_api would become:
-# projects_db = Project.query.order_by(Project.name).all()
-# projects_list = [{'id': p.id, 'name': p.name, 'description': p.description} for p in projects_db]
-# return jsonify(projects_list)
-
 
 if __name__ == '__main__':
     # When running locally, you'd first run `flask init-db` in your terminal

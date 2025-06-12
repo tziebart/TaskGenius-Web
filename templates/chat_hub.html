@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name if project else 'Chat' }} - WorkBuddyPRO Prototype</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="project-selector">
+            <span class="project-name-text">{{ project.name if project else 'Select Project' }} - Chat</span>
+        </div>
+        <div class="header-actions">
+            <span class="action-icon">more_vert</span>
+        </div>
+    </header>
+
+    <div class="container page-content">
+
+        <div class="list-section">
+            <h2 class="list-header">Channels</h2>
+            <ul class="conversation-list">
+                {% for channel in channels %}
+                    <a href="{{ url_for('chat_room_page', project_id=project.id, chat_name=channel.name) }}" class="conversation-item-link">
+                        <li class="conversation-item">
+                            <span class="icon material-icons-outlined">tag</span>
+                            <div class="conversation-details">
+                                <span class="conversation-name">{{ channel.name }}</span>
+                                <span class="conversation-snippet">{{ channel.last_message }}</span>
+                            </div>
+                        </li>
+                    </a>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="list-section">
+            <h2 class="list-header">Direct Messages</h2>
+            <ul class="conversation-list">
+                {% for dm_user in dm_users %}
+                    {% if dm_user.id != user.id %}
+                        <a href="{{ url_for('chat_room_page', project_id=project.id, chat_name=dm_user.name) }}" class="conversation-item-link">
+                            <li class="conversation-item">
+                                <span class="icon material-icons-outlined">person</span>
+                                <div class="conversation-details">
+                                    <span class="conversation-name">{{ dm_user.name }}</span>
+                                    <span class="conversation-snippet">Start a conversation...</span>
+                                </div>
+                            </li>
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="{{ url_for('tasks_page_for_project', project_id=project.id) }}" class="nav-item">
+            <span class="icon material-icons-outlined">list_alt</span>
+            <span class="label">Tasks</span>
+        </a>
+        <a href="{{ url_for('chat_hub_page', project_id=project.id) }}" class="nav-item {% if request.endpoint == 'chat_hub_page' %}active{% endif %}">
+            <span class="icon material-icons">chat_bubble</span>
+            <span class="label">Chat</span>
+        </a>
+        <a href="#log" class="nav-item"> <span class="icon material-icons-outlined">article</span>
+            <span class="label">Log</span>
+        </a>
+    </nav>
+</body>
+</html>

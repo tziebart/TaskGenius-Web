@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name if project else 'Tasks' }} - WorkBuddyPRO Prototype</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="app-header">
+        <div class="project-selector" onclick="alert('Project Switch Clicked!');"> <span class="project-name-text">{{ project.name if project else 'Select Project' }}</span>
+            <span class="dropdown-icon">▼</span> </div>
+        <div class="header-actions">
+            <span class="action-icon" onclick="alert('Search Clicked!');">[🔍]</span> <span class="action-icon" onclick="alert('Filter/Sort Clicked!');">[📊]</span> </div>
+    </header>
+
+    <div class="container page-content">
+        <h1>Tasks for: {{ project.name if project else 'Selected Project' }}</h1>
+        {% if user %}
+            <p class="project-info">Logged in as: {{ user.name }} ({{ user.role }})</p>
+        {% endif %}
+
+        <div class="input-area">
+            <label for="taskTitleInput">Task Title:</label>
+            <input type="text" id="taskTitleInput" placeholder="Enter task title...">
+
+            <label for="taskDescriptionInput">Task Description:</label>
+            <textarea id="taskDescriptionInput" placeholder="Enter task description (optional)..." rows="3"></textarea>
+
+            <label for="taskDueDateInput">Due Date (YYYY-MM-DD):</label>
+            <input type="date" id="taskDueDateInput" style="width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+
+            <label for="taskPriorityInput">Priority:</label>
+            <select id="taskPriorityInput">
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option> <option value="High">High</option>
+            </select>
+
+            <label for="taskAssigneeInput">Assign To:</label>
+            <select id="taskAssigneeInput">
+                <option value="">-- Self (default) --</option>
+                {% if assignable_users %}
+                    {% for u in assignable_users %}
+                        <option value="{{ u.id }}">{{ u.name }} ({{u.role}})</option>
+                    {% endfor %}
+                {% endif %}
+            </select>
+
+            <button id="addTaskBtn" style="margin-top:10px;">Add Task</button>
+        </div>
+
+        <ul id="taskList">
+            </ul>
+    </div>
+
+    <div id="taskDetailsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-content">
+                <span class="modal-close-btn" onclick="closeTaskDetailsModal()">&times;</span>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <h2 id="modalTaskTitle">Task Title</h2> <span id="modalEditTaskBtn" class="icon material-icons" style="cursor: pointer; color: #555;" title="Edit Task">edit</span>
+                </div>
+                <p><strong>Description:</strong></p>
+                <p id="modalTaskDescription" style="white-space: pre-wrap;"></p> <p><strong>Due Date:</strong> <span id="modalTaskDueDate"></span></p> <p><strong>Priority:</strong> <span id="modalTaskPriority"></span></p> <p><strong>Assignee:</strong> <span id="modalTaskAssignee"></span></p> <p><strong>Status:</strong> <span id="modalTaskStatus"></span></p> <hr style="margin: 15px 0;">
+                <h4>Comments (Mock - Not Saved)</h4> <ul id="modalTaskCommentsList" style="list-style-type: none; padding-left: 0; max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 5px; margin-bottom:10px;">
+                    </ul>
+                <textarea id="modalNewCommentInput" placeholder="Type your comment..." rows="2" style="width: calc(100% - 12px); padding: 5px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+                <button id="modalAddCommentBtn" style="padding: 8px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Add Comment</button>
+            </div>
+
+        </div>
+    </div>
+
+    <button id="mainFab" class="fab">
+        <span class="icon material-icons">add</span>
+    </button>
+
+    <div id="fabOptionsMenu" class="fab-options-menu hidden">
+        <button id="fabVoiceAdd" class="fab-option-button" aria-label="Add Task by Voice">
+            <span class="icon material-icons">mic</span>
+            <span class="fab-option-label">Voice</span>
+        </button>
+        <button id="fabManualAdd" class="fab-option-button" aria-label="Add Task Manually">
+            <span class="icon material-icons">edit_square</span> <span class="fab-option-label">Manual</span>
+        </button>
+    </div>
+
+    <div id="voiceListeningModal" class="modal"> <div class="modal-content" style="text-align: center;"> <span class="modal-close-btn" onclick="closeVoiceListeningModal()">&times;</span>
+            <h2 id="voiceModalTitle" style="margin-bottom: 20px;">Listening... 🗣️</h2>
+            <div style="font-size: 48px; margin: 20px 0;" role="img" aria-label="Microphone Icon">🎤</div>
+            <p id="voiceModalInstructions" style="color: #555; font-size: 0.9em;">
+                Please type your task in the prompt that appears.
+                (e.g., "Inspect fence due tomorrow with high priority")
+            </p>
+            <p style="font-size:0.8em; color: #777;"><em>(In a real app, this would be voice input)</em></p>
+            </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="{{ url_for('tasks_page_for_project', project_id=project.id if project else '#') }}" class="nav-item {% if request.endpoint == 'tasks_page_for_project' %}active{% endif %}">
+            <span class="icon material-icons">list_alt</span>
+            <span class="label">Tasks</span>
+        </a>
+         <a href="{{ url_for('chat_hub_page', project_id=project.id) }}" class="nav-item"> <span class="icon material-icons-outlined">chat_bubble_outline</span>
+            <span class="label">Chat</span>
+         </a>
+        <a href="#log" class="nav-item"> <span class="icon material-icons">article</span>
+            <span class="label">Log</span>
+        </a>
+    </nav>
+    <script>
+        const currentProjectId = "{{ project.id if project else '' }}";
+        const currentUserId = "{{ user.id if user else '' }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

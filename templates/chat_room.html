@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ chat_name }} - WorkBuddyPRO</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet">
+</head>
+<body class="chat-room-body">
+    <header class="app-header">
+        <a href="{{ url_for('chat_hub_page', project_id=project.id) }}" class="header-back-link">
+             <span class="icon material-icons">arrow_back</span>
+        </a>
+        <div class="header-chat-title">
+            <span>{{ chat_name }}</span>
+        </div>
+        <div class="header-actions">
+            <span class="action-icon">more_vert</span>
+        </div>
+    </header>
+
+    <div id="chatMessageArea" class="chat-message-area">
+        <div class="chat-bubble other">
+            <span class="bubble-text">This is a mock message from another user. The real chat functionality is coming next!</span>
+        </div>
+        <div class="chat-bubble self">
+            <span class="bubble-text">This is a mock message from you.</span>
+        </div>
+    </div>
+
+    <div class="chat-input-bar">
+        <button class="chat-action-btn"><span class="icon material-icons-outlined">attach_file</span></button>
+        <textarea id="chatMessageInput" placeholder="Type a message..." rows="1"></textarea>
+        <button id="sendMessageBtn" class="chat-action-btn send-btn"><span class="icon material-icons">send</span></button>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const messageArea = document.getElementById('chatMessageArea');
+            const messageInput = document.getElementById('chatMessageInput');
+            const sendBtn = document.getElementById('sendMessageBtn');
+
+            // Function to create and add a new message bubble to the chat area
+            function addMessage(text, type = 'self') {
+                if (!text || !text.trim()) return;
+
+                const bubble = document.createElement('div');
+                bubble.classList.add('chat-bubble', type); // type can be 'self' or 'other'
+
+                const bubbleText = document.createElement('span');
+                bubbleText.classList.add('bubble-text');
+                bubbleText.textContent = text;
+
+                bubble.appendChild(bubbleText);
+                messageArea.appendChild(bubble);
+
+                // Scroll to the bottom to see the latest message
+                messageArea.scrollTop = messageArea.scrollHeight;
+            }
+
+            // --- Event Listeners ---
+
+            // Event listener for the Send button click
+            if (sendBtn) {
+                sendBtn.addEventListener('click', () => {
+                    const text = messageInput.value;
+                    addMessage(text, 'self');
+                    messageInput.value = ''; // Clear the input field
+                    messageInput.focus();
+                });
+            }
+
+            // Event listener for pressing Enter in the textarea
+            if (messageInput) {
+                messageInput.addEventListener('keypress', (event) => {
+                    // Check if Enter is pressed without the Shift key
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault(); // Prevent adding a new line
+                        sendBtn.click(); // Trigger the send button's click event
+                    }
+                });
+            }
+
+            // --- Initial Setup ---
+
+            // Clear the hardcoded mock messages when the page loads
+            if (messageArea) {
+                messageArea.innerHTML = '';
+                const initialMessage = document.createElement('div');
+                initialMessage.style.textAlign = 'center';
+                initialMessage.style.color = '#777';
+                initialMessage.style.fontSize = '0.9em';
+                initialMessage.style.padding = '20px';
+                initialMessage.textContent = 'Chat history would load here. Type a message to begin the mock conversation.';
+                messageArea.appendChild(initialMessage);
+            }
+        });
+    </script>
+</body>
+</html>

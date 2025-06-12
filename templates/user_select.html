@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select User - WorkBuddyPRO Prototype</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container page-content page-center-container"> <h1 class="page-title">Select Your Role</h1> {% if users %}
+            {% for user in users %}
+                <a href="{{ url_for('select_user_route', user_id=user.id) }}" class="button button-primary user-select-button">{{ user.name }} ({{ user.role }})</a>
+            {% endfor %}
+        {% else %}
+            <p>No users found. Please ensure the database is initialized.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

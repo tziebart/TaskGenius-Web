@@ -164,26 +164,39 @@ def get_projects_api():
 # Tasks API
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
 def get_tasks(project_id):
-    # ... full implementation from before ...
-    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
-    tasks_db = Task.query.filter_by(project_id=project_id).order_by(Task.created_at.desc()).all()
-    tasks_list = []
-    for t in tasks_db:
-        assignee = User.query.get(t.assignee_id) if t.assignee_id else None
-        tasks_list.append({
-            'id': t.id, 'title': t.title, 'description': t.description,
-            'is_completed': (t.status == 'Done'), # Translate status to boolean for client
-            'status': t.status, 'priority': t.priority, 'due_date': t.due_date,
-            'assignee_id': t.assignee_id, 'assignee_name': assignee.name if assignee else None
-        })
-    return jsonify(tasks_list)
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
 
-# ... All other POST, PUT, DELETE APIs for Tasks and Comments go here ...
-# Their logic would need to be updated to use SQLAlchemy:
-# e.g., for add_task:
-# new_task = Task(title=..., project_id=...)
-# db.session.add(new_task)
-# db.session.commit()
+    # Security check to ensure user is part of the project would go here in a full app.
+
+    try:
+        # This is the SQLAlchemy way to query for tasks.
+        tasks_from_db = Task.query.filter_by(project_id=project_id).order_by(Task.created_at.desc()).all()
+
+        tasks_list = []
+        for t in tasks_from_db:
+            # We can do a simple query to get the assignee's name for each task.
+            # (In a large-scale app, a single query with a JOIN is more efficient, but this is clear and works well).
+            assignee = User.query.get(t.assignee_id) if t.assignee_id else None
+            assignee_name = assignee.name if assignee else None
+
+            tasks_list.append({
+                'id': t.id,
+                'title': t.title,
+                'description': t.description,
+                'status': t.status,
+                'is_completed': t.status == 'Done',
+                'priority': t.priority,
+                'due_date': t.due_date,
+                'assignee_id': t.assignee_id,
+                'assignee_name': assignee_name
+                })
+
+        return jsonify(tasks_list)
+
+    except Exception as e:
+            print(f"Error fetching tasks for project {project_id}: {e}")
+            return jsonify({"error": "A server error occurred while fetching tasks."}), 500
 
 if __name__ == '__main__':
     # Using app.cli.command is preferred, so this block is just for local dev run

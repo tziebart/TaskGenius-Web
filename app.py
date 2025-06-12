@@ -73,28 +73,52 @@ def init_db_command():
     db.session.commit()
     print('Initialized the database and seeded mock data.')
 
-# --- API Routes (would now use SQLAlchemy) ---
+# In app.py
+
+# ... (keep all your existing imports, app setup, db setup, and Models) ...
+
+# <<< ADD THIS NEW DEBUGGING ROUTE >>>
+@app.route('/test-db')
+def test_db_connection():
+    try:
+        # Try to perform a simple query to confirm the connection works
+        user_count = db.session.query(User).count()
+        # If the above line works, the connection is good.
+        return f"SUCCESS: Successfully connected to the database. Found {user_count} users."
+    except Exception as e:
+        # If it fails, print the exact error to the Render logs and return it in the browser
+        print(f"--- DATABASE CONNECTION ERROR ---")
+        print(str(e))
+        print(f"--- END DATABASE CONNECTION ERROR ---")
+        return f"Failed to connect to the database. The specific error is: <pre>{e}</pre>", 500
+
+# <<< MODIFY YOUR EXISTING /login ROUTE TO ADD LOGGING >>>
 @app.route('/login', methods=['POST'])
 def login_route():
     data = request.json
     email = data.get('email')
     password = data.get('password')
-    user = User.query.filter_by(email=email).first()
+    print(f"Login attempt received for email: {email}") # Log the attempt
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required."}), 400
+
+    try:
+        user = User.query.filter_by(email=email).first()
+    except Exception as e:
+        print(f"Error querying database for user '{email}': {e}")
+        return jsonify({"error": "A database error occurred during login."}), 500
+
     if user and bcrypt.check_password_hash(user.password_hash, password):
-        # ... logic to create session and return user data (without hash) ...
-        # (This logic remains similar but uses SQLAlchemy objects)
+        print(f"Login successful for user: {email}")
         user_data = {'id': user.id, 'name': user.name, 'email': user.email, 'role': user.role}
         session['current_user'] = user_data
         return jsonify({"success": True, "user": user_data}), 200
     else:
+        print(f"Login failed for user: {email}. User found in DB: {user is not None}")
         return jsonify({"error": "Invalid email or password."}), 401
 
-# ... We would update all other API routes to use SQLAlchemy queries ...
-# For example, get_projects_api would become:
-# projects_db = Project.query.order_by(Project.name).all()
-# projects_list = [{'id': p.id, 'name': p.name, 'description': p.description} for p in projects_db]
-# return jsonify(projects_list)
-
+# ... (rest of your app.py) ...
 
 if __name__ == '__main__':
     # When running locally, you'd first run `flask init-db` in your terminal

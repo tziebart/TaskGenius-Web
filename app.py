@@ -12,7 +12,7 @@ app = Flask(__name__)
 # IMPORTANT: This will be set from an environment variable in production
 # For local dev, we can set it directly for now if we don't use a .env file
 # The URL you copied from Supabase goes here.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[YOUR-PASSWORD]@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
 
 import os
 from flask import Flask, request, jsonify, session, flash, render_template, redirect, url_for
@@ -26,7 +26,7 @@ app = Flask(__name__)
 # IMPORTANT: This will be set from an environment variable in production
 # For local dev, we can set it directly for now if we don't use a .env file
 # The URL you copied from Supabase goes here.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[YOUR-PASSWORD]@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
 
 import os
 from flask import Flask, request, jsonify, session, flash, render_template, redirect, url_for
@@ -40,7 +40,7 @@ app = Flask(__name__)
 # IMPORTANT: This will be set from an environment variable in production
 # For local dev, we can set it directly for now if we don't use a .env file
 # The URL you copied from Supabase goes here.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[YOUR-PASSWORD]@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:GfjYpfc03onizwZU@db.yoboblatndnmcxvkzblc.supabase.co:5432/postgres')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_very_secret_key_here'
 

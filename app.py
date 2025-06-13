@@ -14,7 +14,12 @@ CORS(app) # Enable CORS for all routes
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_long_and_super_secret_dev_key_for_local_use')
-
+# <<< ADD THIS BLOCK FOR DATABASE CONNECTION POOLING >>>
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
+# <<< END OF NEW BLOCK >>>
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
@@ -183,6 +188,57 @@ def add_task_api(project_id):
         db.session.rollback()
         return jsonify({"error": "Server error while creating task.", "details": str(e)}), 500
 
+@app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
+def update_task_api(task_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    task = Task.query.get_or_404(task_id)
+    # Add authorization logic here: if session['current_user']['id'] can edit task...
+    data = request.json
+    task.title = data.get('title', task.title)
+    task.description = data.get('description', task.description)
+    task.status = data.get('status', task.status)
+    task.priority = data.get('priority', task.priority)
+    task.due_date = data.get('due_date', task.due_date)
+    task.assignee_id = data.get('assignee_id', task.assignee_id)
+    db.session.commit()
+    return jsonify({'id': task.id, 'message': 'Task updated successfully'})
+
+@app.route('/api/v1/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task_api(task_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    task = Task.query.get_or_404(task_id)
+    # Add authorization logic here
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'message': 'Task deleted successfully'}), 200
+
+# --- Comment APIs ---
+@app.route('/api/v1/tasks/<int:task_id>/comments', methods=['GET'])
+def get_comments_api(task_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    comments_with_user = db.session.query(Comment, User.name.label('user_name'))\
+        .join(User, Comment.user_id == User.id)\
+        .filter(Comment.task_id == task_id).order_by(Comment.created_at.asc()).all()
+    comments_list = []
+    for comment, user_name in comments_with_user:
+        comments_list.append({ 'id': comment.id, 'comment_text': comment.comment_text, 'user_name': user_name, 'created_at': comment.created_at.isoformat() })
+    return jsonify(comments_list)
+
+@app.route('/api/v1/tasks/<int:task_id>/comments', methods=['POST'])
+def add_comment_api(task_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    data = request.json
+    if not data or not data.get('comment_text') or not data.get('comment_text').strip():
+        return jsonify({"error": "Comment text cannot be empty"}), 400
+    try:
+        new_comment = Comment(task_id=task_id, user_id=session['current_user']['id'], comment_text=data['comment_text'].strip())
+        db.session.add(new_comment)
+        db.session.commit()
+        return jsonify({'id': new_comment.id, 'message': 'Comment added successfully'}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Server error while adding comment.", "details": str(e)}), 500
+        
 # --- The rest of your Task and Comment API routes would follow the same pattern ---
 # For brevity, I'm omitting the full text for PUT/DELETE tasks and GET/POST comments,
 # but ensure they are present in your file as we designed them.

@@ -195,8 +195,19 @@ def get_tasks_api_v2(project_id): # Renamed function to avoid conflict if old on
 
 
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['POST'])
-def add_task_api_v2(project_id): # Renamed function
-    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+def add_task_api_v2(project_id):
+    # <<< ADD THESE LOGGING LINES AS THE VERY FIRST THING IN THE FUNCTION >>>
+    print(f"--- ADD TASK API (PROJECT: {project_id}) - ROUTE HIT ---")
+
+    if 'current_user' not in session:
+        print("--- ADD TASK API: FAILED - NO USER IN SESSION ---")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    print("--- ADD TASK API: User is in session. Processing request... ---")
+    # ... the rest of the function logic continues here ...
+    data = request.json
+    title = data.get('title')
+    # ... etc.    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
 
     data = request.json
     title = data.get('title')

@@ -175,7 +175,10 @@ def get_projects_api():
 
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
 def get_tasks_api_v2(project_id):
+    # <<< ADD THIS UNIQUE LOGGING LINE >>>
+    print("--- EXECUTING get_tasks_api_v2 (the GET route) ---")
     """This function handles ONLY GET requests to list tasks."""
+
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
 
     try:
@@ -201,6 +204,8 @@ def get_tasks_api_v2(project_id):
 
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['POST'])
 def add_task_api_v2(project_id):
+    # <<< ADD THIS UNIQUE LOGGING LINE >>>
+    print("--- EXECUTING add_task_api_v2 (thePost route) ---")
     """This function handles ONLY POST requests to create a new task."""
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
 

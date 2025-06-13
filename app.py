@@ -162,41 +162,132 @@ def get_projects_api():
     return jsonify(projects_list)
 
 # Tasks API
-@app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
-def get_tasks(project_id):
-    if 'current_user' not in session:
-        return jsonify({"error": "Unauthorized"}), 401
+# In app.py, find your old task API routes and replace them with this block.
+# This should go after your Project API route.
 
-    # Security check to ensure user is part of the project would go here in a full app.
+# --- Task API Endpoints (SQLAlchemy Version) ---
+
+@app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
+def get_tasks_api_v2(project_id): # Renamed function to avoid conflict if old one exists
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+
+    # In a real app, verify user is a member of this project
 
     try:
-        # This is the SQLAlchemy way to query for tasks.
-        tasks_from_db = Task.query.filter_by(project_id=project_id).order_by(Task.created_at.desc()).all()
+        tasks_from_db = db.session.query(Task, User.name.label('assignee_name'))\
+            .outerjoin(User, Task.assignee_id == User.id)\
+            .filter(Task.project_id == project_id)\
+            .order_by(Task.created_at.desc()).all()
 
         tasks_list = []
-        for t in tasks_from_db:
-            # We can do a simple query to get the assignee's name for each task.
-            # (In a large-scale app, a single query with a JOIN is more efficient, but this is clear and works well).
-            assignee = User.query.get(t.assignee_id) if t.assignee_id else None
-            assignee_name = assignee.name if assignee else None
-
+        for task_obj, assignee_name in tasks_from_db:
             tasks_list.append({
-                'id': t.id,
-                'title': t.title,
-                'description': t.description,
-                'status': t.status,
-                'is_completed': t.status == 'Done',
-                'priority': t.priority,
-                'due_date': t.due_date,
-                'assignee_id': t.assignee_id,
-                'assignee_name': assignee_name
-                })
-
+                'id': task_obj.id, 'title': task_obj.title, 'description': task_obj.description,
+                'status': task_obj.status, 'is_completed': task_obj.status == 'Done',
+                'priority': task_obj.priority, 'due_date': task_obj.due_date,
+                'assignee_id': task_obj.assignee_id, 'assignee_name': assignee_name
+            })
         return jsonify(tasks_list)
+    except Exception as e:
+        print(f"Error fetching tasks: {e}")
+        return jsonify({"error": "Server error while fetching tasks."}), 500
+
+
+@app.route('/api/v1/projects/<project_id>/tasks', methods=['POST'])
+def add_task_api_v2(project_id): # Renamed function
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    title = data.get('title')
+    if not title or not title.strip():
+        return jsonify({"error": "Title is required"}), 400
+
+    creator_id = session['current_user']['id']
+    assignee_id = data.get('assignee_id') or creator_id # Default to self if not provided
+
+    try:
+        new_task = Task(
+            project_id=project_id,
+            title=title.strip(),
+            description=data.get('description', '').strip(),
+            due_date=data.get('due_date'),
+            priority=data.get('priority', 'Medium'),
+            creator_id=creator_id,
+            assignee_id=assignee_id
+        )
+        db.session.add(new_task)
+        db.session.commit()
+
+        # We can build the response manually or re-fetch, manual is faster
+        assignee = User.query.get(new_task.assignee_id)
+        return jsonify({
+            'id': new_task.id, 'title': new_task.title, 'description': new_task.description,
+            'status': new_task.status, 'is_completed': new_task.status == 'Done',
+            'priority': new_task.priority, 'due_date': new_task.due_date,
+            'assignee_id': new_task.assignee_id, 'assignee_name': assignee.name if assignee else None
+        }), 201
 
     except Exception as e:
-            print(f"Error fetching tasks for project {project_id}: {e}")
-            return jsonify({"error": "A server error occurred while fetching tasks."}), 500
+        db.session.rollback()
+        print(f"Error adding task: {e}")
+        return jsonify({"error": "Server error while adding task."}), 500
+
+@app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
+def update_task_api_v2(task_id): # Renamed function
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+
+    task_to_update = Task.query.get(task_id)
+    if not task_to_update:
+        return jsonify({"error": "Task not found"}), 404
+
+    # Add security check here to ensure user can edit this task
+
+    data = request.json
+    task_to_update.title = data.get('title', task_to_update.title)
+    task_to_update.description = data.get('description', task_to_update.description)
+    task_to_update.status = data.get('status', task_to_update.status)
+    task_to_update.priority = data.get('priority', task_to_update.priority)
+    task_to_update.due_date = data.get('due_date', task_to_update.due_date)
+    task_to_update.assignee_id = data.get('assignee_id', task_to_update.assignee_id)
+
+    try:
+        db.session.commit()
+        # Re-fetch with join to get assignee name for response
+        response_data = db.session.query(Task, User.name.label('assignee_name'))\
+            .outerjoin(User, Task.assignee_id == User.id)\
+            .filter(Task.id == task_id).first()
+
+        task_obj, assignee_name = response_data
+        return jsonify({
+            'id': task_obj.id, 'title': task_obj.title, 'description': task_obj.description,
+            'status': task_obj.status, 'is_completed': task_obj.status == 'Done',
+            'priority': task_obj.priority, 'due_date': task_obj.due_date,
+            'assignee_id': task_obj.assignee_id, 'assignee_name': assignee_name
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating task: {e}")
+        return jsonify({"error": "Server error while updating task."}), 500
+
+
+@app.route('/api/v1/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task_api_v2(task_id): # Renamed function
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+
+    task_to_delete = Task.query.get(task_id)
+    if not task_to_delete:
+        return jsonify({"error": "Task not found"}), 404
+
+    # Add security check here
+
+    try:
+        db.session.delete(task_to_delete)
+        db.session.commit()
+        return jsonify({"message": "Task deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting task: {e}")
+        return jsonify({"error": "Server error while deleting task."}), 500
 
 if __name__ == '__main__':
     # Using app.cli.command is preferred, so this block is just for local dev run

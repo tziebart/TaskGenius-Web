@@ -5,9 +5,10 @@ from flask import Flask, request, jsonify, session, flash, render_template, redi
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from sqlalchemy.exc import IntegrityError
-
+from flask_cors import CORS
 # --- App Initialization ---
 app = Flask(__name__)
+CORS(app)
 
 # --- Configuration ---
 # Reads the DATABASE_URL from Render's environment variables.

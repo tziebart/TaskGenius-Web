@@ -1,16 +1,16 @@
 import os
-import sqlite3
 import uuid
-from flask import Flask, request, jsonify, session, render_template, redirect, url_for
+from flask import Flask, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
+from sqlalchemy.exc import IntegrityError
 
-# --- App Initialization ---
+# --- App Initialization & Config ---
 app = Flask(__name__)
 CORS(app) # Enable CORS for all routes
 
-# --- Configuration ---
+# This reads the DATABASE_URL from Render's environment variables.
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_long_and_super_secret_dev_key_for_local_use')
@@ -77,22 +77,30 @@ class Message(db.Model):
 # --- Database Initialization Command ---
 @app.cli.command('init-db')
 def init_db_command():
-    """Creates tables and seeds mock data."""
+    """Creates all database tables and seeds mock data."""
     db.drop_all()
     db.create_all()
-    # ... (Seeding logic from setup_database.py - you can copy it here if needed) ...
-    print('Initialized the database.')
-
-# --- HTML Serving Routes (for getting started) ---
-@app.route('/')
-def home_page():
-    # If a user is already logged in, redirect to project selection
-    if 'current_user' in session:
-        return redirect(url_for('project_select_page'))
-    return render_template('login.html')
+    hashed_password = bcrypt.generate_password_hash('password123').decode('utf-8')
+    owner = User(id='owner01', email='owner@workbuddy.pro', name='Owner User', password_hash=hashed_password, role='Owner')
+    foreman = User(id='foremanA', email='alice@workbuddy.pro', name='Foreman Alice', password_hash=hashed_password, role='Foreman')
+    worker = User(id='workerX', email='bob@workbuddy.pro', name='Worker Bob', password_hash=hashed_password, role='Worker')
+    project_alpha = Project(id='proj_alpha', name='Project Alpha - Downtown Renovation', description='Renovation of library.', owner_id='owner01')
+    db.session.add_all([owner, foreman, worker, project_alpha])
+    db.session.commit()
+    member1 = ProjectMember(project_id='proj_alpha', user_id='owner01')
+    member2 = ProjectMember(project_id='proj_alpha', user_id='foremanA')
+    member3 = ProjectMember(project_id='proj_alpha', user_id='workerX')
+    db.session.add_all([member1, member2, member3])
+    db.session.commit()
+    print('Initialized and seeded the database.')
 
 # --- API Routes ---
 
+@app.route('/')
+def index():
+    return jsonify({"status": "TaskGenius API is running."})
+
+# --- Auth APIs ---
 @app.route('/api/v1/login', methods=['POST'])
 def login_api():
     data = request.json
@@ -100,7 +108,7 @@ def login_api():
         return jsonify({"error": "Email and password are required."}), 400
     user = User.query.filter_by(email=data['email']).first()
     if user and bcrypt.check_password_hash(user.password_hash, data['password']):
-        user_data = {k: v for k, v in user.__dict__.items() if not k.startswith('_') and k != 'password_hash'}
+        user_data = {'id': user.id, 'name': user.name, 'email': user.email, 'role': user.role}
         session['current_user'] = user_data
         return jsonify({"success": True, "user": user_data}), 200
     return jsonify({"error": "Invalid email or password."}), 401
@@ -108,17 +116,30 @@ def login_api():
 @app.route('/api/v1/logout', methods=['POST'])
 def logout_api():
     session.clear()
-    return jsonify({"success": True, "message": "Logged out successfully."}), 200
+    return jsonify({"success": True, "message": "Logged out successfully."})
 
+# --- Project APIs ---
 @app.route('/api/v1/projects', methods=['GET'])
 def get_projects_api():
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
-    projects = Project.query.order_by(Project.name).all()
-    return jsonify([{'id': p.id, 'name': p.name, 'description': p.description} for p in projects])
+    # In real app, filter projects by user's membership in project_members table
+    projects_db = Project.query.order_by(Project.name).all()
+    return jsonify([{'id': p.id, 'name': p.name, 'description': p.description} for p in projects_db])
 
+@app.route('/api/v1/select-project/<project_id>', methods=['POST'])
+def select_project_api(project_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    project = Project.query.get(project_id)
+    if project:
+        session['current_project'] = {'id': project.id, 'name': project.name}
+        return jsonify({"success": True, "project": session['current_project']})
+    return jsonify({"error": "Project not found"}), 404
+
+# --- Task APIs ---
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
 def get_tasks_api(project_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    # Add auth check: is user in this project?
     tasks_with_assignee = db.session.query(Task, User.name.label('assignee_name'))\
         .outerjoin(User, Task.assignee_id == User.id)\
         .filter(Task.project_id == project_id).order_by(Task.created_at.desc()).all()
@@ -153,11 +174,14 @@ def add_task_api(project_id):
 def update_task_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
     task = Task.query.get_or_404(task_id)
+    # Add authorization logic here: if session['current_user']['id'] can edit task...
     data = request.json
     task.title = data.get('title', task.title)
     task.description = data.get('description', task.description)
     task.status = data.get('status', task.status)
-    # ... update other fields ...
+    task.priority = data.get('priority', task.priority)
+    task.due_date = data.get('due_date', task.due_date)
+    task.assignee_id = data.get('assignee_id', task.assignee_id)
     db.session.commit()
     return jsonify({'id': task.id, 'message': 'Task updated successfully'})
 
@@ -165,10 +189,12 @@ def update_task_api(task_id):
 def delete_task_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
     task = Task.query.get_or_404(task_id)
+    # Add authorization logic here
     db.session.delete(task)
     db.session.commit()
     return jsonify({'message': 'Task deleted successfully'}), 200
 
+# --- Comment APIs ---
 @app.route('/api/v1/tasks/<int:task_id>/comments', methods=['GET'])
 def get_comments_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -194,4 +220,6 @@ def add_comment_api(task_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Server error while adding comment.", "details": str(e)}), 500
-    
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', debug=True)

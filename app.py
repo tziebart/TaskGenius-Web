@@ -221,5 +221,13 @@ def add_comment_api(task_id):
         db.session.rollback()
         return jsonify({"error": "Server error while adding comment.", "details": str(e)}), 500
 
+# In app.py, add this temporary route for debugging
+
+@app.route('/api/v1/test-task-route')
+def test_tasks_route():
+    print("--- !!! /api/v1/test-task-route ROUTE WAS SUCCESSFULLY HIT !!! ---")
+    # For this test, we just return a simple, hardcoded JSON object.
+    return jsonify([{"id": 999, "title": "This is a test task from the simple route"}])
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)

@@ -168,20 +168,25 @@ def get_projects_api():
 
 # --- Task API Endpoints (SQLAlchemy Version) ---
 
+# In app.py
+# Make sure you have these TWO separate functions for the same URL path.
+
+# --- Task API Endpoints (SQLAlchemy Version) ---
+
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
-def get_tasks_api_v2(project_id): # Renamed function to avoid conflict if old one exists
+def get_tasks_api_v2(project_id):
+    """This function handles ONLY GET requests to list tasks."""
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
 
-    # In a real app, verify user is a member of this project
-
     try:
-        tasks_from_db = db.session.query(Task, User.name.label('assignee_name'))\
+        # This query does NOT look at request.json
+        tasks_db = db.session.query(Task, User.name.label('assignee_name'))\
             .outerjoin(User, Task.assignee_id == User.id)\
             .filter(Task.project_id == project_id)\
             .order_by(Task.created_at.desc()).all()
 
         tasks_list = []
-        for task_obj, assignee_name in tasks_from_db:
+        for task_obj, assignee_name in tasks_db:
             tasks_list.append({
                 'id': task_obj.id, 'title': task_obj.title, 'description': task_obj.description,
                 'status': task_obj.status, 'is_completed': task_obj.status == 'Done',
@@ -196,26 +201,16 @@ def get_tasks_api_v2(project_id): # Renamed function to avoid conflict if old on
 
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['POST'])
 def add_task_api_v2(project_id):
-    # <<< ADD THESE LOGGING LINES AS THE VERY FIRST THING IN THE FUNCTION >>>
-    print(f"--- ADD TASK API (PROJECT: {project_id}) - ROUTE HIT ---")
+    """This function handles ONLY POST requests to create a new task."""
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
 
-    if 'current_user' not in session:
-        print("--- ADD TASK API: FAILED - NO USER IN SESSION ---")
-        return jsonify({"error": "Unauthorized"}), 401
-
-    print("--- ADD TASK API: User is in session. Processing request... ---")
-    # ... the rest of the function logic continues here ...
-    data = request.json
-    title = data.get('title')
-    # ... etc.    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.json
+    data = request.json # This is correct here, because it's a POST request
     title = data.get('title')
     if not title or not title.strip():
         return jsonify({"error": "Title is required"}), 400
 
     creator_id = session['current_user']['id']
-    assignee_id = data.get('assignee_id') or creator_id # Default to self if not provided
+    assignee_id = data.get('assignee_id') or creator_id
 
     try:
         new_task = Task(
@@ -230,20 +225,17 @@ def add_task_api_v2(project_id):
         db.session.add(new_task)
         db.session.commit()
 
-        # We can build the response manually or re-fetch, manual is faster
+        # ... logic to return the newly created task ...
         assignee = User.query.get(new_task.assignee_id)
         return jsonify({
-            'id': new_task.id, 'title': new_task.title, 'description': new_task.description,
-            'status': new_task.status, 'is_completed': new_task.status == 'Done',
-            'priority': new_task.priority, 'due_date': new_task.due_date,
-            'assignee_id': new_task.assignee_id, 'assignee_name': assignee.name if assignee else None
+            'id': new_task.id, 'title': new_task.title, # etc.
+            'assignee_name': assignee.name if assignee else None
         }), 201
-
     except Exception as e:
         db.session.rollback()
         print(f"Error adding task: {e}")
         return jsonify({"error": "Server error while adding task."}), 500
-
+    
 @app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
 def update_task_api_v2(task_id): # Renamed function
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401

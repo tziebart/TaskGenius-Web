@@ -242,6 +242,83 @@ def add_comment_api(task_id):
 # --- The rest of your Task and Comment API routes would follow the same pattern ---
 # For brevity, I'm omitting the full text for PUT/DELETE tasks and GET/POST comments,
 # but ensure they are present in your file as we designed them.
+# In app.py, add this new section for Chat API Endpoints
 
+# --- Chat API Endpoints ---
+
+@app.route('/api/v1/chat/<conversation_id>/messages', methods=['GET'])
+def get_chat_messages(conversation_id):
+    # Security check: Ensure user is logged in
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # In a real app, we would also add a security check here to ensure
+    # the logged-in user is a valid participant in this conversation.
+
+    try:
+        # Fetch messages, joining with the users table to get the sender's name
+        messages_from_db = db.session.query(Message, User.name.label('user_name'))\
+            .join(User, Message.user_id == User.id)\
+            .filter(Message.conversation_id == conversation_id)\
+            .order_by(Message.created_at.asc()).all()
+
+        messages_list = []
+        for message, user_name in messages_from_db:
+            messages_list.append({
+                'id': message.id,
+                'conversation_id': message.conversation_id,
+                'user_id': message.user_id,
+                'user_name': user_name,
+                'message_text': message.message_text,
+                'created_at': message.created_at.isoformat()
+            })
+
+        return jsonify(messages_list)
+    except Exception as e:
+        print(f"Error fetching messages for conversation {conversation_id}: {e}")
+        return jsonify({"error": "Server error while fetching messages."}), 500
+
+@app.route('/api/v1/chat/<conversation_id>/messages', methods=['POST'])
+def post_chat_message(conversation_id):
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # Add conceptual security check here for conversation participation
+
+    data = request.json
+    message_text = data.get('message_text')
+    user_id = session['current_user']['id']
+
+    if not message_text or not message_text.strip():
+        return jsonify({"error": "Message text cannot be empty"}), 400
+
+    try:
+        new_message = Message(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            message_text=message_text.strip()
+        )
+        db.session.add(new_message)
+        db.session.commit()
+
+        # Fetch the user's name to include in the response
+        user = User.query.get(user_id)
+        user_name = user.name if user else "Unknown User"
+
+        # Return the newly created message object so the client can display it
+        return jsonify({
+            'id': new_message.id,
+            'conversation_id': new_message.conversation_id,
+            'user_id': new_message.user_id,
+            'user_name': user_name,
+            'message_text': new_message.message_text,
+            'created_at': new_message.created_at.isoformat()
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error posting message to conversation {conversation_id}: {e}")
+        return jsonify({"error": "Server error while posting message."}), 500
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)

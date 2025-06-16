@@ -188,6 +188,45 @@ def add_task_api(project_id):
         db.session.rollback()
         return jsonify({"error": "Server error while creating task.", "details": str(e)}), 500
 
+# In app.py, add this to your Task APIs section
+
+@app.route('/api/v1/tasks/<int:task_id>', methods=['GET'])
+def get_task_detail_api(task_id):
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        # Fetch the specific task and join with the User table to get the assignee's name
+        task_data = db.session.query(Task, User.name.label('assignee_name'))\
+            .outerjoin(User, Task.assignee_id == User.id)\
+            .filter(Task.id == task_id).first()
+
+        if not task_data:
+            return jsonify({"error": "Task not found"}), 404
+
+        # In a real app, you would add a security check here to ensure the current user
+        # is a member of the project that this task belongs to.
+
+        task_obj, assignee_name = task_data
+
+        # Convert the task object to a dictionary for JSON response
+        task_dict = {
+            'id': task_obj.id,
+            'title': task_obj.title,
+            'description': task_obj.description,
+            'status': task_obj.status,
+            'priority': task_obj.priority,
+            'due_date': task_obj.due_date,
+            'assignee_id': task_obj.assignee_id,
+            'assignee_name': assignee_name
+            # We can add creator info here too if needed
+        }
+        return jsonify(task_dict)
+
+    except Exception as e:
+        print(f"Error fetching detail for task {task_id}: {e}")
+        return jsonify({"error": "Server error while fetching task details."}), 500
+
 @app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
 def update_task_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401

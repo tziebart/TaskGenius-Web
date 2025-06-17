@@ -143,6 +143,26 @@ def logout_api():
 
 # --- User APIs ---
 
+@app.route('/api/v1/users', methods=['GET'])
+def get_all_users_api():
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # In a real app with multiple companies, you would filter this list.
+    # For now, we return all users except the one making the request.
+    try:
+        current_user_id = session['current_user']['id']
+        all_users = User.query.filter(User.id != current_user_id).order_by(User.name).all()
+
+        users_list = [
+            {"id": user.id, "name": user.name, "role": user.role}
+            for user in all_users
+        ]
+        return jsonify(users_list)
+    except Exception as e:
+        print(f"Error fetching all users: {e}")
+        return jsonify({"error": "Server error while fetching users."}), 500
+
 @app.route('/api/v1/users/<user_id>', methods=['DELETE'])
 def delete_user_api(user_id):
     # --- Authorization ---
@@ -283,6 +303,7 @@ def select_project_api(project_id):
     return jsonify({"error": "Project not found"}), 404
 
 # --- Task APIs ---
+
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['GET'])
 def get_tasks_api(project_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -307,23 +328,67 @@ def get_tasks_api(project_id):
 @app.route('/api/v1/projects/<project_id>/tasks', methods=['POST'])
 def add_task_api(project_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    # ... (rest of auth checks) ...
     data = request.json
-    if not data or not data.get('title') or not data.get('title').strip():
-        return jsonify({"error": "Title is required"}), 400
+    if not data or not data.get('title'): return jsonify({"error": "Title is required"}), 400
+
     try:
-        creator_id = session['current_user']['id']
-        assignee_id = data.get('assignee_id') or creator_id
-        new_task = Task(project_id=project_id, title=data['title'].strip(), description=data.get('description', '').strip(),
+        assignee_id = data.get('assignee_id') or session['current_user']['id']
+
+        # --- NEW LOGIC ---
+        # Check if the assignee is already a member of the project
+        membership = ProjectMember.query.filter_by(project_id=project_id, user_id=assignee_id).first()
+        if not membership:
+            # If not a member, add them automatically
+            new_member = ProjectMember(project_id=project_id, user_id=assignee_id)
+            db.session.add(new_member)
+            print(f"Auto-adding user {assignee_id} to project {project_id}")
+        # --- END OF NEW LOGIC ---
+
+        new_task = Task(project_id=project_id, title=data['title'].strip(), description=data.get('description', ''),
                         due_date=data.get('due_date'), priority=data.get('priority', 'Medium'),
-                        creator_id=creator_id, assignee_id=assignee_id)
+                        creator_id=session['current_user']['id'], assignee_id=assignee_id)
         db.session.add(new_task)
         db.session.commit()
-        return jsonify({'id': new_task.id, 'message': 'Task created successfully'}), 201
+        return jsonify({'id': new_task.id, 'message': 'Task created and user membership verified.'}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Server error while creating task.", "details": str(e)}), 500
 
-# In app.py, add this to your Task APIs section
+
+# In app.py, replace your update_task_api function
+
+@app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
+def update_task_api(task_id):
+    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
+    task_to_update = Task.query.get_or_404(task_id)
+    # ... (auth logic) ...
+    data = request.json
+
+    assignee_id = data.get('assignee_id', task_to_update.assignee_id)
+    if assignee_id:
+        # --- NEW LOGIC ---
+        # Check if the new assignee is already a member of the project
+        membership = ProjectMember.query.filter_by(project_id=task_to_update.project_id, user_id=assignee_id).first()
+        if not membership:
+            new_member = ProjectMember(project_id=task_to_update.project_id, user_id=assignee_id)
+            db.session.add(new_member)
+            print(f"Auto-adding user {assignee_id} to project {task_to_update.project_id}")
+        # --- END OF NEW LOGIC ---
+
+    # Update task fields
+    task_to_update.title = data.get('title', task_to_update.title)
+    task_to_update.description = data.get('description', task_to_update.description)
+    task_to_update.status = data.get('status', task_to_update.status)
+    task_to_update.assignee_id = assignee_id
+    # ... (update other fields) ...
+
+    try:
+        db.session.commit()
+        return jsonify({'id': task_to_update.id, 'message': 'Task updated successfully.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Server error while updating task.", "details": str(e)}), 500
 
 @app.route('/api/v1/tasks/<int:task_id>', methods=['GET'])
 def get_task_detail_api(task_id):
@@ -362,21 +427,6 @@ def get_task_detail_api(task_id):
         print(f"Error fetching detail for task {task_id}: {e}")
         return jsonify({"error": "Server error while fetching task details."}), 500
 
-@app.route('/api/v1/tasks/<int:task_id>', methods=['PUT'])
-def update_task_api(task_id):
-    if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
-    task = Task.query.get_or_404(task_id)
-    # Add authorization logic here: if session['current_user']['id'] can edit task...
-    data = request.json
-    task.title = data.get('title', task.title)
-    task.description = data.get('description', task.description)
-    task.status = data.get('status', task.status)
-    task.priority = data.get('priority', task.priority)
-    task.due_date = data.get('due_date', task.due_date)
-    task.assignee_id = data.get('assignee_id', task.assignee_id)
-    db.session.commit()
-    return jsonify({'id': task.id, 'message': 'Task updated successfully'})
-
 @app.route('/api/v1/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401
@@ -387,6 +437,7 @@ def delete_task_api(task_id):
     return jsonify({'message': 'Task deleted successfully'}), 200
 
 # --- Comment APIs ---
+
 @app.route('/api/v1/tasks/<int:task_id>/comments', methods=['GET'])
 def get_comments_api(task_id):
     if 'current_user' not in session: return jsonify({"error": "Unauthorized"}), 401

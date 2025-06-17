@@ -79,6 +79,20 @@ class Message(db.Model):
     message_text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.now())
 
+# In app.py, add this class with your other models
+
+class Invitation(db.Model):
+    __tablename__ = 'invitations'
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.Text, unique=True, nullable=False)
+    email = db.Column(db.Text, nullable=False)
+    project_id = db.Column(db.Text, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
+    role = db.Column(db.Text, nullable=False)
+    status = db.Column(db.Text, nullable=False, default='pending') # pending, accepted
+    created_at = db.Column(db.TIMESTAMP, server_default=db.func.now())
+    accepted_at = db.Column(db.TIMESTAMP)
+    accepted_by_user_id = db.Column(db.Text, db.ForeignKey('users.id', ondelete='SET NULL'))
+
 # --- Database Initialization Command ---
 @app.cli.command('init-db')
 def init_db_command():
@@ -127,6 +141,99 @@ def logout_api():
     session.clear()
     return jsonify({"success": True, "message": "Logged out successfully."})
 
+# --- User APIs ---
+
+@app.route('/api/v1/users/<user_id>', methods=['DELETE'])
+def delete_user_api(user_id):
+    # --- Authorization ---
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # CRITICAL: This is a highly privileged action. Only allow a user with the 'Owner' role.
+    if session['current_user']['role'] != 'Owner':
+        return jsonify({"error": "Forbidden. You do not have permission to delete users."}), 403
+
+    # Add a check to prevent an owner from deleting their own account.
+    if session['current_user']['id'] == user_id:
+        return jsonify({"error": "Owners cannot delete their own account via the API."}), 400
+
+    try:
+        user_to_delete = User.query.get(user_id)
+
+        if not user_to_delete:
+            return jsonify({"error": "User not found"}), 404
+
+        # Our database schema is set up with 'ON DELETE SET NULL' for task creators/assignees
+        # and 'ON DELETE CASCADE' for project memberships, so the database will handle
+        # cleaning up all the references correctly when we delete the user from the 'users' table.
+        db.session.delete(user_to_delete)
+        db.session.commit()
+
+        return jsonify({"message": f"User '{user_to_delete.name}' has been deleted successfully."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting user {user_id}: {e}")
+        return jsonify({"error": "A server error occurred while deleting the user."}), 500
+
+# --- Invitation APIs ---
+
+@app.route('/api/v1/projects/<project_id>/invitations', methods=['POST'])
+def create_invitation_api(project_id):
+    # --- Authorization ---
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if session['current_user']['role'] != 'Owner':
+        return jsonify({"error": "Forbidden. Only Owners can send invitations."}), 403
+
+    data = request.json
+    email = data.get('email')
+    role = data.get('role')
+
+    # --- Validation ---
+    if not email or not role:
+        return jsonify({"error": "Email and role are required."}), 400
+    if role not in ['Foreman', 'Worker']:
+        return jsonify({"error": "Invalid role specified. Must be 'Foreman' or 'Worker'."}), 400
+
+    # Check if a user with this email already exists in the system
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "A user with this email already exists."}), 409 # 409 Conflict code
+
+    # Check if a pending invitation for this email already exists
+    if Invitation.query.filter_by(email=email, status='pending').first():
+        return jsonify({"error": "An invitation for this email is already pending."}), 409
+
+    try:
+        # Generate a unique, secure token for the invitation link
+        token = str(uuid.uuid4())
+
+        new_invitation = Invitation(
+            token=token,
+            email=email,
+            project_id=project_id,
+            role=role
+        )
+        db.session.add(new_invitation)
+        db.session.commit()
+
+        # In a real app, you would now trigger an email to be sent to the user.
+        # For our API, we can return the generated token/link for testing purposes.
+        invite_link = f"https://YourAppDomain.com/register?token={token}"
+
+        return jsonify({
+            "message": "Invitation created successfully.",
+            "email": email,
+            "role": role,
+            "invite_link_for_testing": invite_link
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating invitation: {e}")
+        return jsonify({"error": "A server error occurred while creating the invitation."}), 500
+
 # --- Project APIs ---
 @app.route('/api/v1/projects', methods=['GET'])
 def get_projects_api():
@@ -136,6 +243,34 @@ def get_projects_api():
     projects_db = Project.query.order_by(Project.name).all()
     projects_list = [{'id': p.id, 'name': p.name, 'description': p.description} for p in projects_db]
     return jsonify(projects_list)
+
+# In app.py, add this new API route
+
+@app.route('/api/v1/projects/<project_id>/members', methods=['GET'])
+def get_project_members_api(project_id):
+    if 'current_user' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # In a real app, first verify the current user is also a member of this project
+
+    try:
+        # This query joins our three tables: project_members, users, and projects
+        # to find all users for a given project_id.
+        members = db.session.query(User).join(ProjectMember, User.id == ProjectMember.user_id).filter(ProjectMember.project_id == project_id).all()
+
+        members_list = []
+        for member in members:
+            members_list.append({
+                "id": member.id,
+                "name": member.name,
+                "role": member.role
+            })
+
+        return jsonify(members_list)
+
+    except Exception as e:
+        print(f"Error fetching members for project {project_id}: {e}")
+        return jsonify({"error": "Server error while fetching project members."}), 500
 
 @app.route('/api/v1/select-project/<project_id>', methods=['POST'])
 def select_project_api(project_id):

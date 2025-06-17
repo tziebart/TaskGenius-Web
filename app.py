@@ -380,8 +380,9 @@ def update_task_api(task_id):
     task_to_update.title = data.get('title', task_to_update.title)
     task_to_update.description = data.get('description', task_to_update.description)
     task_to_update.status = data.get('status', task_to_update.status)
-    task_to_update.assignee_id = assignee_id
-    # ... (update other fields) ...
+    task_to_update.priority = data.get('priority', task_to_update.priority)
+    task_to_update.due_date = data.get('due_date', task_to_update.due_date) # <<< ENSURE THIS LINE IS PRESENT
+    task_to_update.assignee_id = data.get('assignee_id', task_to_update.assignee_id)
 
     try:
         db.session.commit()

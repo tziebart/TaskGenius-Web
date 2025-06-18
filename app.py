@@ -5,6 +5,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from sqlalchemy.exc import IntegrityError
+from flask_socketio import SocketIO, emit, join_room, leave_room
+
 
 # --- App Initialization & Config ---
 app = Flask(__name__)
@@ -22,6 +24,7 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 # <<< END OF NEW BLOCK >>>
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # --- Database Models ---
 class User(db.Model):
@@ -92,6 +95,29 @@ class Invitation(db.Model):
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.now())
     accepted_at = db.Column(db.TIMESTAMP)
     accepted_by_user_id = db.Column(db.Text, db.ForeignKey('users.id', ondelete='SET NULL'))
+
+# --- NEW: WebSocket Event Handlers ---
+# These functions handle events from our live chat connection
+
+@socketio.on('connect')
+def handle_connect():
+    print(f"Client connected: {request.sid}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"Client disconnected: {request.sid}")
+
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data['conversation_id']
+    join_room(room)
+    print(f"Client {request.sid} joined room: {room}")
+
+@socketio.on('leave_room')
+def handle_leave_room(data):
+    room = data['conversation_id']
+    leave_room(room)
+    print(f"Client {request.sid} left room: {room}")
 
 # --- Database Initialization Command ---
 @app.cli.command('init-db')
@@ -531,15 +557,21 @@ def post_chat_message(conversation_id):
         user = User.query.get(user_id)
         user_name = user.name if user else "Unknown User"
 
-        # Return the newly created message object so the client can display it
-        return jsonify({
+        # This is the new message object we will broadcast
+        message_data = {
             'id': new_message.id,
             'conversation_id': new_message.conversation_id,
             'user_id': new_message.user_id,
-            'user_name': user_name,
+            'user_name': user.name if user else "Unknown",
             'message_text': new_message.message_text,
             'created_at': new_message.created_at.isoformat()
-        }), 201
+        }
+
+        # <<< NEW: Broadcast the new message to everyone in the room >>>
+        socketio.emit('new_message', message_data, room=conversation_id)
+
+        # We still return a standard HTTP response to the original sender
+        return jsonify(message_data), 201
 
     except Exception as e:
         db.session.rollback()

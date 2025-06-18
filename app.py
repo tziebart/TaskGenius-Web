@@ -1,12 +1,19 @@
+# In app.py
+
+# <<< ADD THESE TWO LINES AT THE VERY TOP OF THE FILE >>>
+import eventlet
+eventlet.monkey_patch()
+
+# --- All other imports go below this ---
 import os
-import uuid
 from flask import Flask, request, jsonify, session
+from flask_socketio import SocketIO, join_room, leave_room, emit
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-from sqlalchemy.exc import IntegrityError
-from flask_socketio import SocketIO, emit, join_room, leave_room
+import uuid
 
+# ... The rest of your app.py file continues here ...
 
 # --- App Initialization & Config ---
 app = Flask(__name__)

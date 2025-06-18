@@ -585,5 +585,12 @@ def post_chat_message(conversation_id):
         print(f"Error posting message to conversation {conversation_id}: {e}")
         return jsonify({"error": "Server error while posting message."}), 500
     
+# In app.py, replace the block at the very end of the file
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    # This will now start the production-ready Socket.IO server
+    # which correctly manages eventlet. It gets the port from an
+    # environment variable, which services like Render provide.
+    port = int(os.environ.get('PORT', 5000))
+    print(f"--> Starting Socket.IO server on port {port}")
+    socketio.run(app, host='0.0.0.0', port=port)

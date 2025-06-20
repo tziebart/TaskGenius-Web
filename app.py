@@ -348,10 +348,16 @@ def get_tasks_api(project_id):
         tasks_list = []
         for task_obj, assignee_name in tasks_with_assignee:
             tasks_list.append({
-                'id': task_obj.id, 'title': task_obj.title, 'description': task_obj.description,
-                'status': task_obj.status, 'is_completed': task_obj.status == 'Done',
-                'priority': task_obj.priority, 'due_date': task_obj.due_date,
-                'assignee_id': task_obj.assignee_id, 'assignee_name': assignee_name
+                'id': task_obj.id,
+                'project_id': task_obj.project_id, 
+                'title': task_obj.title, 
+                'description': task_obj.description,
+                'status': task_obj.status, 
+                'is_completed': task_obj.status == 'Done',
+                'priority': task_obj.priority, 
+                'due_date': task_obj.due_date,
+                'assignee_id': task_obj.assignee_id, 
+                'assignee_name': assignee_name
             })
         return jsonify(tasks_list)
     except Exception as e:

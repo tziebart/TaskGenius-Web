@@ -446,6 +446,7 @@ def get_task_detail_api(task_id):
         # Convert the task object to a dictionary for JSON response
         task_dict = {
             'id': task_obj.id,
+            'project_id': task_obj.project_id,
             'title': task_obj.title,
             'description': task_obj.description,
             'status': task_obj.status,
